@@ -1,28 +1,19 @@
-from pymavlink import mavutil
+import logging
+import time
+
 from c2station import config
+from c2station.link import Link
 
+logging.basicConfig(level=logging.DEBUG, format="%(levelname)s %(name)s: %(message)s")
 
-# Connect the drone
-drone = mavutil.mavlink_connection(config.CONNECTION_STRING)
-drone.wait_heartbeat()
-print("Connected to drone with system ID:", drone.target_system)
+link = Link(config.CONNECTION_STRING)
+link.connect()
+link.start()
 
-drone.arducopter_arm()
-drone.motors_armed_wait()
-print("Armed")
+for _ in range(30):
+    s = link.get_state()
+    print(f"{s.mode:<8} armed={s.armed!s:<5} alt={s.alt}  lat={s.lat}  lon={s.lon}  "
+          f"batt={s.battery_percent}%  sats={s.satellites}  wp={s.current_wp}")
+    time.sleep(1)
 
-drone.set_mode("AUTO")
-drone.mav.command_long_send(drone.target_system, drone.target_component, mavutil.mavlink.MAV_CMD_MISSION_START, 0, 0, 0, 0, 0, 0, 0, 0)
-print("Mission started")
-
-# 4. Ask the drone to send position 3 times per second
-drone.mav.request_data_stream_send(
-    drone.target_system, drone.target_component,
-    mavutil.mavlink.MAV_DATA_STREAM_POSITION,
-    3,     # rate in Hz
-    1)     # 1 = start sending, 0 = stop
-
-# 5. Print each position message as it arrives
-while True:
-    msg = drone.recv_match(type="GLOBAL_POSITION_INT", blocking=True)
-    print("lat:", msg.lat / 1e7, " lon:", msg.lon / 1e7, " alt:", msg.relative_alt / 1000, "m")
+print("Messages:", link.recent_messages()[-5:])
