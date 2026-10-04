@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class Waypoint:
     lat: float
     lon: float
-    alt: float
+    alt_m: float
     
     def __post_init__(self):
         _check_lat_lon(self.lat, self.lon)
@@ -37,7 +37,7 @@ class DroneState:
     # Drone Position
     lat: float | None = None
     lon: float | None = None
-    alt: float | None = None
+    alt_m: float | None = None
     heading_deg: float | None = None
     groundspeed_mps: float | None = None
     

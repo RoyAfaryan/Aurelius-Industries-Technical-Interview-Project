@@ -10,19 +10,20 @@ import queue
 import logging
 import collections
 import copy
+from typing import Any
+from collections.abc import Callable
 
 log = logging.getLogger(__name__)
 
 WAITABLE_TYPES = (
     "COMMAND_ACK",
     "MISSION_REQUEST",
-    "MISSION_REQUEST_INT",
     "MISSION_ACK",
 )
 
 TELEMETRY_STREAMS = {
     "GLOBAL_POSITION_INT": config.POSITION_RATE_HZ,
-    "VFR_HUD": config.STATUS_RATE_HZ,
+    "VFR_HUD": config.POSITION_RATE_HZ,
     "SYS_STATUS": config.STATUS_RATE_HZ,
     "GPS_RAW_INT": config.STATUS_RATE_HZ,
     "MISSION_CURRENT": config.STATUS_RATE_HZ,
@@ -70,6 +71,7 @@ class Link:
         heartbeat = self._master.wait_heartbeat(timeout=timeout_s)
         if heartbeat is None:
             self._master.close()
+            self._master = None
             raise ConnectionError(f"No heartbeat from {self._conn_str} within {timeout_s} seconds.")
         
         # Request the drone to send telemetry streams at the desired rate
@@ -100,6 +102,19 @@ class Link:
         self._stop.clear()
         self._reader = threading.Thread(target=self._reader_thread, daemon=True)
         self._reader.start()
+    
+    # Close the background telemetry reader thread, end the connection completely, and change drone state bool to false    
+    def close(self) -> None:
+        self._stop.set()
+        if self._reader is not None:
+            self._reader.join(timeout=2)
+        
+        if self._master is not None:
+            self._master.close()
+            self._master = None
+        
+        with self._lock:
+            self._drone_state.connected = False
     
     
     
@@ -159,12 +174,12 @@ class Link:
         elif msg_type == "GLOBAL_POSITION_INT":
             lat = msg.lat / 1e7
             lon = msg.lon / 1e7
-            alt = msg.relative_alt / 1e3
+            alt_m = msg.relative_alt / 1e3
             heading = None if msg.hdg == 65535 else msg.hdg / 100
             with self._lock:
                 self._drone_state.lat = lat
                 self._drone_state.lon = lon
-                self._drone_state.alt = alt
+                self._drone_state.alt_m = alt_m
                 self._drone_state.heading_deg = heading
         
         elif msg_type == "VFR_HUD":
@@ -240,6 +255,80 @@ class Link:
             0, 0, 0, 0, 0, 0
         )
         log.debug("Requested HOME_POSITION")
+    
+    # Access to the pymavlink sender
+    @property
+    def mav(self) -> Any:
+        if self._master is None:
+            raise RuntimeError("Not connected.")
+        return self._master.mav
+    
+    # Access to the target_system and target_component of the drone
+    @property 
+    def target(self) -> tuple[int, int]:
+        if self._master is None:
+            raise RuntimeError("Not connected.")
+        return (self._master.target_system, self._master.target_component)
+    
+    
+    # Translate a mode name like "GUIDED" or "AUTO" into ArduPilot's mode number.
+    def mode_number(self, name: str) -> int:
+        if self._master is None:
+            raise RuntimeError("Not connected.")
+        
+        mapping = self._master.mode_mapping()
+        if mapping is None:
+            raise RuntimeError("Vehicle type unknown; no heartbeat received yet.")
+        if name not in mapping:
+            raise ValueError(f"Unknown mode {name!r}. Valid modes: {sorted(mapping)}")
+        
+        return mapping[name]
+    
+    # Throw awway queued messages of one type. Call right before sending.
+    def clear_pending(self, msg_type: str) -> None:
+        # Make sure there is a queue for this message type
+        if msg_type not in self._pending:
+            raise ValueError(f"No mailbox for {msg_type!r}. Valid types: {sorted(self._pending)}")
+        
+        q = self._pending[msg_type]
+        while True:
+            try:
+                q.get_nowait()
+            except queue.Empty:
+                break
+    
+    # Used to hear response from the drone after sending command        
+    def wait_for(
+        self,
+        msg_type: str,
+        condition: Callable[[Any], bool] | None = None,
+        timeout_s: float = config.COMMAND_ACK_TIMEOUT_S,
+    ) -> Any:
+        
+        # Make sure there is a queue for this message type
+        if msg_type not in self._pending:
+            raise ValueError(f"No mailbox for {msg_type!r}. Valid types: {sorted(self._pending)}")
+        
+        q = self._pending[msg_type]
+        deadline = time.monotonic() + timeout_s
+        
+        # Wait for a reply from the vehicle, e.g. the COMMAND_ACK for a command
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return None
+            
+            try:
+                msg = q.get(timeout=remaining)
+            except queue.Empty:
+                return None
+            
+            if condition is None or condition(msg):
+                return msg
+        
+
+                
+        
         
     
         

@@ -1,5 +1,5 @@
 # --- Connection ---
-CONNECTION_STRING = "tcp:127.0.0.1:5762"    # change if your drone is on a different port or IP address
+DEFAULT_CONNECTION_STRING = "tcp:127.0.0.1:5762"    # change if your drone is on a different port or IP address
 SOURCE_SYSTEM_ID = 254                      # must differ from Mission Planner's 255
 HEARTBEAT_TIMEOUT_S = 10                    # how long to wait when first connecting
 LINK_LOST_AFTER_S = 3                       # no heartbeat for this long = link lost
