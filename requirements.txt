@@ -1,3 +1,7 @@
-Versions:
-Python 3.14.8
-pymavlink 2.4.50
+# Install with: pip install -r requirements.txt
+# Python 3.10 or newer. Tkinter comes with Python on Windows and macOS.
+
+customtkinter==6.0.0     # UI widgets
+pillow==12.3.0           # map icons (drawn in map_view.py)
+pymavlink==2.4.50        # MAVLink connection to the drone
+tkintermapview==1.30     # satellite map
