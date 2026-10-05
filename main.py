@@ -1,28 +1,24 @@
-from pymavlink import mavutil
+import argparse
+import logging
+ 
 from c2station import config
-
-
-# Connect the drone
-drone = mavutil.mavlink_connection(config.CONNECTION_STRING)
-drone.wait_heartbeat()
-print("Connected to drone with system ID:", drone.target_system)
-
-drone.arducopter_arm()
-drone.motors_armed_wait()
-print("Armed")
-
-drone.set_mode("AUTO")
-drone.mav.command_long_send(drone.target_system, drone.target_component, mavutil.mavlink.MAV_CMD_MISSION_START, 0, 0, 0, 0, 0, 0, 0, 0)
-print("Mission started")
-
-# 4. Ask the drone to send position 3 times per second
-drone.mav.request_data_stream_send(
-    drone.target_system, drone.target_component,
-    mavutil.mavlink.MAV_DATA_STREAM_POSITION,
-    3,     # rate in Hz
-    1)     # 1 = start sending, 0 = stop
-
-# 5. Print each position message as it arrives
-while True:
-    msg = drone.recv_match(type="GLOBAL_POSITION_INT", blocking=True)
-    print("lat:", msg.lat / 1e7, " lon:", msg.lon / 1e7, " alt:", msg.relative_alt / 1000, "m")
+from c2station.ui.app import App
+ 
+ 
+def main() -> None:
+    parser = argparse.ArgumentParser(description="C2 Station: a small ground station for ArduCopter")
+    parser.add_argument("--conn", default=config.DEFAULT_CONNECTION_STRING,
+                        help="MAVLink connection string, e.g. tcp:127.0.0.1:5762")
+    parser.add_argument("--debug", action="store_true", help="verbose logging")
+    args = parser.parse_args()
+ 
+    logging.basicConfig(
+        level=logging.DEBUG if args.debug else logging.INFO,
+        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    App(default_conn=args.conn).mainloop()
+ 
+ 
+if __name__ == "__main__":
+    main()
