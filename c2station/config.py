@@ -21,6 +21,7 @@ MAX_SPEED_MPS = 15.0
 # --- Obstacle avoidance ---
 OBSTACLE_BUFFER_M = 5.0                     # extra clearance around each obstacle
 DETOUR_POINTS = 2                           # waypoints added to route around an obstacle
+OBSTACLE_RADIUS_M = 20.0                    # radius of obstacles placed from the map
 
 # --- UI ---
 UI_REFRESH_MS = 100                         # 10 Hz screen updates

@@ -15,11 +15,11 @@ class Waypoint:
 class Obstacle:
     lat: float
     lon: float
-    radius: float
+    radius_m: float
     
     def __post_init__(self):
         _check_lat_lon(self.lat, self.lon)
-        if self.radius <= 0:
+        if self.radius_m <= 0:
             raise ValueError("Obstacle radius must be positive.")
         
 # Dataclass object to have data fields for the latest known telemetry of the Drone within the simulation

@@ -1,4 +1,5 @@
 import logging
+import time
 
 from pymavlink import mavutil
 from typing import NamedTuple
@@ -227,6 +228,18 @@ class Drone:
 
         # params 0, 0 = run the whole mission (first item to last item)
         return self._command(mavutil.mavlink.MAV_CMD_MISSION_START, 0, 0)
+    
+    # Make mission item seq the one being flown (in AUTO, the drone heads there now).
+    def set_current_item(self, seq: int, timeout_s: float = 3.0) -> CommandResult:
+        
+        self._link.mav.mission_set_current_send(*self._link.target, seq)
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            if self.state().current_wp == seq:
+                log.info("Current mission item set to %d", seq)
+                return CommandResult(True, f"Now flying to mission item {seq}")
+            time.sleep(0.1)
+        return self._failed(f"Vehicle did not switch to mission item {seq}")
     
     # Log a failure and return it as a CommandResult
     def _failed(self, message: str) -> CommandResult:
